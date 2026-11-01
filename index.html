@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FairSplit &bull; Bill Splitter</title>
+  <meta name="description" content="Split any bill evenly down to the exact paise. Works offline, nothing leaves your device.">
+  <meta name="theme-color" content="#0E7C66">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230E7C66'/%3E%3Cpath d='M22 12h20v40l-5-3.4-5 3.4-5-3.4-5 3.4V12z' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linejoin='round'/%3E%3Cpath d='M27 24h10M27 32h10' stroke='%23fff' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+:root {
+  --color-accent: #0E7C66;
+  --color-accent-hover: #0a5c4c;
+  --color-accent-ring: rgba(14, 124, 102, 0.25);
+  --color-highlight: #F2A93B;
+  --color-bg: #F4EFE6;
+  --color-surface: #FFFFFF;
+  --color-receipt: #FDFCFA;
+  --color-text-main: #202421;
+  --color-text-muted: #656C66;
+  --color-border: #D8D2C5;
+  --color-error-bg: #FDF2F2;
+  --color-error-text: #991B1B;
+  --color-error-border: #F87171;
+  
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+
+  --shadow-card: 0 4px 12px rgba(32, 36, 33, 0.05), 0 1px 3px rgba(32, 36, 33, 0.08);
+  --shadow-receipt: 0 10px 25px -5px rgba(45, 38, 28, 0.12), 0 8px 10px -6px rgba(45, 38, 28, 0.08);
+
+  --radius-md: 10px;
+  --radius-sm: 6px;
+}
+
+[data-theme="dark"] {
+  --color-bg: #141716;
+  --color-surface: #1E2320;
+  --color-receipt: #232925;
+  --color-text-main: #F3F4F3;
+  --color-text-muted: #A0A8A2;
+  --color-border: #353D37;
+  --color-error-bg: #2C1818;
+  --color-error-text: #FCA5A5;
+  --color-error-border: #7F1D1D;
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-receipt: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  line-height: 1.5;
+  min-height: 100vh;
+  padding: clamp(16px, 3vw, 40px) 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.error-banner[hidden] {
+  display: none !important;
+}
+
+.live-hint[hidden] {
+  display: none !important;
+}
+
+.offscreen-copy {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 1024px;
+  margin: 0 auto;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: clamp(24px, 4vw, 40px);
+  position: relative;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.brand-badge {
+  display: inline-block;
+  background-color: rgba(14, 124, 102, 0.12);
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+[data-theme="dark"] .brand-badge {
+  background-color: rgba(14, 124, 102, 0.28);
+  color: #2ED8B6;
+}
+
+.theme-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-main);
+  padding: 8px;
+  min-height: 40px;
+  min-width: 40px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--color-accent);
+  background-color: rgba(14, 124, 102, 0.05);
+}
+
+.theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.icon-sun {
+  display: none;
+}
+.icon-moon {
+  display: block;
+}
+
+[data-theme="dark"] .icon-sun {
+  display: block;
+}
+[data-theme="dark"] .icon-moon {
+  display: none;
+}
+
+.app-title {
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-accent);
+  line-height: 1.2;
+}
+
+[data-theme="dark"] .app-title {
+  color: #2ED8B6;
+}
+
+.app-subtitle {
+  color: var(--color-text-muted);
+  font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+  margin-top: 6px;
+}
+
+.calculator-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(20px, 3vw, 36px);
+  align-items: start;
+}
+
+.card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  padding: clamp(20px, 3vw, 32px);
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--color-text-main);
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--color-text-main);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.input-prefix-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-prefix {
+  position: absolute;
+  left: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--color-text-main);
+  background-color: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-prefix-wrapper input[type="number"] {
+  padding-left: 32px;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--color-error-border);
+  background-color: var(--color-error-bg);
+}
+
+input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.3);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  font-family: inherit;
+}
+
+.primary-btn {
+  background-color: var(--color-accent);
+  color: #FFFFFF;
+  border: 1px solid var(--color-accent);
+  box-shadow: 0 2px 4px rgba(14, 124, 102, 0.2);
+}
+
+.primary-btn:hover {
+  background-color: var(--color-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(14, 124, 102, 0.25);
+}
+
+.primary-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(14, 124, 102, 0.2);
+}
+
+.ghost-btn {
+  background-color: transparent;
+  color: var(--color-accent);
+  border: 1.5px solid var(--color-accent);
+  margin-top: 12px;
+}
+
+[data-theme="dark"] .ghost-btn {
+  color: #2ED8B6;
+  border-color: #2ED8B6;
+}
+
+.ghost-btn:hover {
+  background-color: rgba(14, 124, 102, 0.08);
+}
+
+.ghost-btn:active {
+  transform: translateY(1px);
+}
+
+.live-hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: 8px;
+  font-weight: 500;
+  min-height: 20px;
+}
+
+.error-banner {
+  background-color: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error-text);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  margin-bottom: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Receipt Card Aesthetics */
+.receipt-column {
+  min-width: 0;
+}
+
+.receipt-card {
+  position: relative;
+  background-color: var(--color-receipt);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-receipt);
+}
+
+.perforated-edge {
+  height: 8px;
+  background-size: 14px 8px;
+  background-repeat: repeat-x;
+  background-image: radial-gradient(circle at 7px -1px, transparent 6px, var(--color-receipt) 7px);
+}
+
+.perforated-edge.bottom {
+  background-image: radial-gradient(circle at 7px 9px, transparent 6px, var(--color-receipt) 7px);
+}
+
+.receipt-content {
+  padding: clamp(20px, 3vw, 32px);
+}
+
+.placeholder-card {
+  border-style: dashed;
+  transform-origin: center center;
+}
+
+.placeholder-content {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.empty-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
+.placeholder-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin-bottom: 6px;
+}
+
+.placeholder-text {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  max-width: 260px;
+  margin: 0 auto;
+}
+
+.receipt-header {
+  text-align: center;
+}
+
+.receipt-stamp {
+  display: inline-block;
+  border: 1.5px solid var(--color-highlight);
+  color: #B2700D;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  transform: rotate(-2deg);
+}
+
+[data-theme="dark"] .receipt-stamp {
+  color: #F2A93B;
+  border-color: #F2A93B;
+}
+
+.receipt-occasion {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  word-break: break-word;
+}
+
+.receipt-timestamp {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  margin-top: 4px;
+}
+
+.receipt-divider.dashed {
+  border: 0;
+  border-top: 1.5px dashed var(--color-border);
+  margin: 18px 0;
+}
+
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.9375rem;
+  margin-bottom: 6px;
+}
+
+.summary-label {
+  color: var(--color-text-muted);
+}
+
+.summary-value {
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.breakdown-heading {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+.shares-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shares-list.compact-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 6px;
+  gap: 6px;
+}
+
+.shares-list.compact-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.shares-list.compact-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 4px;
+}
+
+.share-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.9375rem;
+}
+
+.shares-list.compact-scroll .share-row {
+  font-size: 0.875rem;
+}
+
+.person-name {
+  font-weight: 500;
+  color: var(--color-text-main);
+  white-space: nowrap;
+}
+
+.leader-dots {
+  flex-grow: 1;
+  margin: 0 8px;
+  border-bottom: 1.5px dotted var(--color-border);
+  position: relative;
+  top: -4px;
+}
+
+.person-amount {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-accent);
+  white-space: nowrap;
+  text-align: right;
+}
+
+[data-theme="dark"] .person-amount {
+  color: #2ED8B6;
+}
+
+.monospace {
+  font-family: var(--font-mono);
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.total-check {
+  font-size: 1.05rem;
+}
+
+.exact-match-note {
+  font-size: 0.75rem;
+  color: var(--color-accent);
+  text-align: right;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .exact-match-note {
+  color: #2ED8B6;
+}
+
+.copy-btn {
+  background-color: transparent;
+  color: var(--color-text-main);
+  border: 1px solid var(--color-border);
+  margin-top: 18px;
+  font-size: 0.9rem;
+}
+
+.copy-btn:hover {
+  background-color: rgba(14, 124, 102, 0.06);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+[data-theme="dark"] .copy-btn:hover {
+  color: #2ED8B6;
+  border-color: #2ED8B6;
+}
+
+.copy-btn.copied-state {
+  background-color: var(--color-accent);
+  color: #FFFFFF;
+  border-color: var(--color-accent);
+}
+
+.app-footer {
+  text-align: center;
+  margin-top: clamp(24px, 4vw, 40px);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+/* Animations & Stagger Delays */
+@keyframes slideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-row {
+  animation: slideFadeIn 0.22s ease-out forwards;
+}
+
+.row-delay-0 { animation-delay: 0s; }
+.row-delay-1 { animation-delay: 0.04s; }
+.row-delay-2 { animation-delay: 0.08s; }
+.row-delay-3 { animation-delay: 0.12s; }
+.row-delay-4 { animation-delay: 0.16s; }
+.row-delay-5 { animation-delay: 0.20s; }
+.row-delay-6 { animation-delay: 0.24s; }
+.row-delay-7 { animation-delay: 0.28s; }
+.row-delay-8 { animation-delay: 0.32s; }
+.row-delay-9 { animation-delay: 0.36s; }
+.row-delay-10 { animation-delay: 0.40s; }
+
+@keyframes emptyStatePulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.nudge-pulse {
+  animation: emptyStatePulse 0.3s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-row,
+  .nudge-pulse {
+    animation: none;
+  }
+  .btn {
+    transition: none;
+  }
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 820px) {
+  .calculator-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body {
+    padding: 16px 12px;
+  }
+
+  .theme-toggle {
+    position: static;
+    transform: none;
+    margin-left: auto;
+  }
+
+  .header-top {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .primary-btn,
+  .ghost-btn,
+  .copy-btn {
+    width: 100%;
+  }
+
+  .ghost-btn {
+    margin-top: 12px;
+  }
+
+  .receipt-content {
+    padding: 16px;
+  }
+
+  .placeholder-content {
+    padding: 32px 16px;
+  }
+
+  .person-name,
+  .person-amount {
+    font-size: 0.875rem;
+  }
+}
+/* ===========================================================
+   Final polish (visual only — no layout/logic changes)
+   =========================================================== */
+
+/* Smooth theme crossfade on the big surfaces */
+.card,
+.receipt-card,
+.app-title,
+input[type="text"],
+input[type="number"] {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.15s ease;
+}
+
+/* Consistent keyboard focus ring for every button */
+.btn:focus-visible,
+.theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+/* Brand-tinted text selection */
+::selection {
+  background-color: rgba(14, 124, 102, 0.22);
+}
+
+/* Nicer taps on mobile */
+.btn,
+.theme-toggle,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Thin scrollbar on Firefox too (list of many people) */
+.shares-list.compact-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* Very soft load-in so the page doesn't "snap" */
+.app-header,
+.calculator-grid {
+  animation: shellFadeIn 0.35s ease-out both;
+}
+
+.calculator-grid {
+  animation-delay: 0.05s;
+}
+
+@keyframes shellFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Error banner eases in instead of popping */
+.error-banner:not([hidden]) {
+  animation: slideFadeIn 0.18s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header,
+  .calculator-grid,
+  .error-banner:not([hidden]) {
+    animation: none;
+  }
+}
+
+/* Print / save-as-PDF: just the receipt, like a real slip */
+@media print {
+  body {
+    background: #fff;
+    padding: 0;
+  }
+
+  .app-header,
+  .input-card,
+  .app-footer,
+  .perforated-edge {
+    display: none !important;
+  }
+
+  .calculator-grid {
+    display: block;
+  }
+
+  .receipt-card {
+    box-shadow: none;
+    border: 1px solid #999;
+    break-inside: avoid;
+  }
+
+  .copy-btn {
+    display: none !important;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-top">
+        <div class="brand-badge">Split &amp; Settle</div>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg class="theme-icon icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="theme-icon icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+      </div>
+      <h1 class="app-title">Receipt Splitter</h1>
+      <p class="app-subtitle">Evenly distribute bills down to the exact paise.</p>
+    </header>
+
+    <main class="calculator-grid">
+      <section class="card input-card" aria-labelledby="form-heading">
+        <h2 id="form-heading" class="card-title">Bill Details</h2>
+        <form id="split-form" novalidate>
+          <div class="form-group">
+            <label for="occasion-input">Occasion / Note <span class="optional">(Optional)</span></label>
+            <input 
+              type="text" 
+              id="occasion-input" 
+              name="occasion" 
+              placeholder="e.g., Team Lunch, Groceries" 
+              maxlength="60"
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="bill-input">Total Bill Amount (₹)</label>
+            <div class="input-prefix-wrapper">
+              <span class="currency-prefix" aria-hidden="true">₹</span>
+              <input 
+                type="number" 
+                id="bill-input" 
+                name="bill" 
+                inputmode="decimal" 
+                placeholder="0.00" 
+                step="0.01" 
+                min="0.01" 
+                required
+                autocomplete="off"
+              >
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="people-input">Number of People</label>
+            <input 
+              type="number" 
+              id="people-input" 
+              name="people" 
+              inputmode="numeric" 
+              placeholder="e.g., 3" 
+              step="1" 
+              min="1" 
+              max="1000"
+              required
+              autocomplete="off"
+            >
+          </div>
+
+          <div id="error-banner" class="error-banner" role="alert" aria-live="assertive" hidden></div>
+
+          <button type="submit" id="calculate-btn" class="btn primary-btn">
+            Split the Bill
+          </button>
+
+          <div id="live-hint" class="live-hint" aria-live="polite" hidden></div>
+
+          <button type="button" id="reset-btn" class="btn ghost-btn">
+            Reset
+          </button>
+        </form>
+      </section>
+
+      <section class="receipt-column">
+        <!-- Empty State Placeholder -->
+        <div id="empty-state-card" class="receipt-card placeholder-card">
+          <div class="perforated-edge" aria-hidden="true"></div>
+          <div class="receipt-content placeholder-content">
+            <div class="empty-icon-wrapper" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="empty-receipt-svg">
+                <path d="M14 8h36v48l-6-4-6 4-6-4-6 4-6-4-6 4V8z"></path>
+                <line x1="22" y1="20" x2="42" y2="20"></line>
+                <line x1="22" y1="28" x2="36" y2="28"></line>
+                <line x1="22" y1="36" x2="42" y2="36"></line>
+              </svg>
+            </div>
+            <h3 class="placeholder-title">No split yet</h3>
+            <p class="placeholder-text">Enter the bill details and tap Split the Bill.</p>
+          </div>
+          <div class="perforated-edge bottom" aria-hidden="true"></div>
+        </div>
+
+        <!-- Populated Receipt Card -->
+        <div id="receipt-card" class="receipt-card" hidden aria-live="polite">
+          <div class="perforated-edge" aria-hidden="true"></div>
+          
+          <div class="receipt-content">
+            <div class="receipt-header">
+              <span class="receipt-stamp">PAID &amp; SPLIT</span>
+              <h3 id="receipt-occasion" class="receipt-occasion"></h3>
+              <p id="receipt-timestamp" class="receipt-timestamp"></p>
+            </div>
+
+            <div class="receipt-divider dashed" aria-hidden="true"></div>
+
+            <div class="receipt-summary">
+              <div class="summary-line">
+                <span class="summary-label">Total Amount</span>
+                <span id="summary-total" class="summary-value monospace">₹0.00</span>
+              </div>
+              <div class="summary-line">
+                <span class="summary-label">Total People</span>
+                <span id="summary-people" class="summary-value">0</span>
+              </div>
+            </div>
+
+            <div class="receipt-divider dashed" aria-hidden="true"></div>
+
+            <div class="breakdown-section">
+              <h4 class="breakdown-heading">Individual Breakdown</h4>
+              <ul id="shares-list" class="shares-list"></ul>
+            </div>
+
+            <div class="receipt-divider dashed" aria-hidden="true"></div>
+
+            <div class="receipt-footer">
+              <div class="summary-line total-check">
+                <span class="summary-label">Sum of Shares</span>
+                <span id="summary-verified-sum" class="summary-value monospace font-bold">₹0.00</span>
+              </div>
+              <p class="exact-match-note">&check; Total matches bill to the exact paise.</p>
+              
+              <button type="button" id="copy-summary-btn" class="btn copy-btn">
+                Copy summary
+              </button>
+            </div>
+          </div>
+
+          <div class="perforated-edge bottom" aria-hidden="true"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Works offline &bull; Nothing leaves your device.</p>
+    </footer>
+  </div>
+
+  <script>
+document.addEventListener('DOMContentLoaded', () => {
+  const STORAGE_KEY_STATE = 'fairsplit_app_state_v1';
+  const STORAGE_KEY_THEME = 'fairsplit_theme_v1';
+  const COPY_BTN_DEFAULT_LABEL = 'Copy summary';
+  const COPY_BTN_SUCCESS_LABEL = 'Copied!';
+
+  // Defensive DOM query utility
+  const el = (id) => {
+    try {
+      return document.getElementById(id);
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const formEl = el('split-form');
+  const occasionInput = el('occasion-input');
+  const billInput = el('bill-input');
+  const peopleInput = el('people-input');
+  const errorBanner = el('error-banner');
+  const receiptCard = el('receipt-card');
+  const emptyStateCard = el('empty-state-card');
+  const receiptOccasion = el('receipt-occasion');
+  const receiptTimestamp = el('receipt-timestamp');
+  const summaryTotal = el('summary-total');
+  const summaryPeople = el('summary-people');
+  const summaryVerifiedSum = el('summary-verified-sum');
+  const sharesList = el('shares-list');
+  const liveHint = el('live-hint');
+  const resetBtn = el('reset-btn');
+  const copySummaryBtn = el('copy-summary-btn');
+  const themeToggle = el('theme-toggle');
+
+  let currentCalculatedData = null;
+
+  // Safe Multi-Tier Storage Wrapper
+  const safeStorage = {
+    get(key) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const val = localStorage.getItem(key);
+          if (val !== null) return val;
+        }
+      } catch (_) {}
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          const val = sessionStorage.getItem(key);
+          if (val !== null) return val;
+        }
+      } catch (_) {}
+      return null;
+    },
+    set(key, val) {
+      let saved = false;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(key, val);
+          saved = true;
+        }
+      } catch (_) {}
+      if (!saved) {
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(key, val);
+          }
+        } catch (_) {}
+      }
+    },
+    remove(key) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(key);
+        }
+      } catch (_) {}
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(key);
+        }
+      } catch (_) {}
+    }
+  };
+
+  // Indian Currency Formatter (₹)
+  function formatINR(amountInRupees) {
+    if (typeof amountInRupees !== 'number' || !isFinite(amountInRupees)) {
+      return '₹0.00';
+    }
+    const parts = amountInRupees.toFixed(2).split('.');
+    const integerPart = parts[0];
+    const decimalPart = parts[1];
+
+    let lastThree = integerPart.slice(-3);
+    const otherNumbers = integerPart.slice(0, -3);
+    if (otherNumbers !== '') {
+      lastThree = ',' + lastThree;
+    }
+    const formattedInteger = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
+
+    return `₹${formattedInteger}.${decimalPart}`;
+  }
+
+  // Safe node-removal helper (Fix 5: No innerHTML assignment)
+  function removeAllChildNodes(parentElement) {
+    if (!parentElement) return;
+    while (parentElement.firstChild) {
+      parentElement.removeChild(parentElement.firstChild);
+    }
+  }
+
+  // Clear all rendered receipt content (Fix 1)
+  function clearReceiptData() {
+    removeAllChildNodes(sharesList);
+    if (summaryTotal) summaryTotal.textContent = '₹0.00';
+    if (summaryPeople) summaryPeople.textContent = '0';
+    if (summaryVerifiedSum) summaryVerifiedSum.textContent = '₹0.00';
+    if (receiptOccasion) receiptOccasion.textContent = '';
+    if (receiptTimestamp) receiptTimestamp.textContent = '';
+    currentCalculatedData = null;
+  }
+
+  // Trigger attention animation on the empty-state placeholder (Fix 6)
+  function triggerEmptyStateNudge() {
+    if (!emptyStateCard || emptyStateCard.hidden) return;
+    emptyStateCard.classList.remove('nudge-pulse');
+    void emptyStateCard.offsetWidth; // Force reflow
+    emptyStateCard.classList.add('nudge-pulse');
+    setTimeout(() => {
+      try {
+        emptyStateCard.classList.remove('nudge-pulse');
+      } catch (_) {}
+    }, 300);
+  }
+
+  function showError(message) {
+    clearReceiptData();
+    if (errorBanner) {
+      errorBanner.textContent = message;
+      errorBanner.hidden = false;
+    }
+    if (receiptCard) receiptCard.hidden = true;
+    if (emptyStateCard) emptyStateCard.hidden = false;
+    triggerEmptyStateNudge();
+  }
+
+  function clearError() {
+    if (errorBanner) {
+      errorBanner.textContent = '';
+      errorBanner.hidden = true;
+    }
+    if (billInput) billInput.removeAttribute('aria-invalid');
+    if (peopleInput) peopleInput.removeAttribute('aria-invalid');
+  }
+
+  // Exact paise split calculation
+  function calculateSplit(totalPaise, peopleCount) {
+    const baseSharePaise = Math.floor(totalPaise / peopleCount);
+    const remainderPaise = totalPaise % peopleCount;
+
+    const sharesPaise = [];
+    let sumPaise = 0;
+
+    for (let i = 0; i < peopleCount; i++) {
+      const share = baseSharePaise + (i < remainderPaise ? 1 : 0);
+      sharesPaise.push(share);
+      sumPaise += share;
+    }
+
+    return {
+      totalPaise,
+      sumPaise,
+      sharesPaise
+    };
+  }
+
+  // Live Hint Handler
+  function updateLiveHint() {
+    if (!liveHint || !billInput || !peopleInput) return;
+
+    const billRaw = billInput.value.trim();
+    const peopleRaw = peopleInput.value.trim();
+
+    if (!billRaw || !peopleRaw) {
+      liveHint.hidden = true;
+      liveHint.textContent = '';
+      return;
+    }
+
+    const bill = Number(billRaw);
+    const people = Number(peopleRaw);
+
+    if (
+      !isFinite(bill) || 
+      bill <= 0 || 
+      !isFinite(people) || 
+      !Number.isInteger(people) || 
+      people <= 0 || 
+      people > 1000
+    ) {
+      liveHint.hidden = true;
+      liveHint.textContent = '';
+      return;
+    }
+
+    const totalPaise = Math.round(bill * 100);
+    if (totalPaise < 1) {
+      liveHint.hidden = true;
+      liveHint.textContent = '';
+      return;
+    }
+
+    const avgRupees = totalPaise / people / 100;
+    liveHint.textContent = `≈ ${formatINR(avgRupees)} per person`;
+    liveHint.hidden = false;
+  }
+
+  function renderReceipt(occasionText, totalPaise, peopleCount, timestampStr) {
+    if (!receiptCard || !sharesList) return;
+
+    const occasion = occasionText && occasionText.trim() ? occasionText.trim() : 'Bill Split';
+    const splitData = calculateSplit(totalPaise, peopleCount);
+
+    if (receiptOccasion) receiptOccasion.textContent = occasion;
+    if (receiptTimestamp) {
+      receiptTimestamp.textContent = timestampStr || new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    if (summaryTotal) summaryTotal.textContent = formatINR(splitData.totalPaise / 100);
+    if (summaryPeople) summaryPeople.textContent = peopleCount.toString();
+
+    // Clear previous rows cleanly
+    removeAllChildNodes(sharesList);
+
+    const isLongList = peopleCount > 24;
+    if (isLongList) {
+      sharesList.classList.add('compact-scroll');
+    } else {
+      sharesList.classList.remove('compact-scroll');
+    }
+
+    splitData.sharesPaise.forEach((paise, idx) => {
+      const li = document.createElement('li');
+      // Apply CSS delay classes without inline styles (Fix 4)
+      if (isLongList) {
+        li.className = 'share-row';
+      } else {
+        const delayClass = `row-delay-${Math.min(idx, 10)}`;
+        li.className = `share-row animate-row ${delayClass}`;
+      }
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'person-name';
+      nameSpan.textContent = `Person ${idx + 1}`;
+
+      const dotsSpan = document.createElement('span');
+      dotsSpan.className = 'leader-dots';
+      dotsSpan.setAttribute('aria-hidden', 'true');
+
+      const amountSpan = document.createElement('span');
+      amountSpan.className = 'person-amount monospace';
+      amountSpan.textContent = formatINR(paise / 100);
+
+      li.appendChild(nameSpan);
+      li.appendChild(dotsSpan);
+      li.appendChild(amountSpan);
+      sharesList.appendChild(li);
+    });
+
+    if (summaryVerifiedSum) {
+      summaryVerifiedSum.textContent = formatINR(splitData.sumPaise / 100);
+    }
+
+    currentCalculatedData = {
+      occasion,
+      totalPaise: splitData.totalPaise,
+      peopleCount,
+      sharesPaise: splitData.sharesPaise
+    };
+
+    if (emptyStateCard) emptyStateCard.hidden = true;
+    receiptCard.hidden = false;
+  }
+
+  // Exact validation priority order (Fix 2)
+  function handleProcess(isRestoring = false) {
+    clearError();
+
+    const occasionVal = occasionInput ? occasionInput.value : '';
+    const billRaw = billInput ? billInput.value.trim() : '';
+    const peopleRaw = peopleInput ? peopleInput.value.trim() : '';
+
+    // Priority 1: Bill field is empty
+    if (!billRaw) {
+      if (billInput) billInput.setAttribute('aria-invalid', 'true');
+      if (peopleInput) peopleInput.removeAttribute('aria-invalid');
+      showError('Please enter the total bill amount.');
+      return false;
+    }
+
+    const bill = Number(billRaw);
+
+    // Priority 2: Bill is not greater than 0, or is not a number
+    if (!isFinite(bill) || bill <= 0) {
+      if (billInput) billInput.setAttribute('aria-invalid', 'true');
+      if (peopleInput) peopleInput.removeAttribute('aria-invalid');
+      showError('Bill amount must be a positive number greater than zero.');
+      return false;
+    }
+
+    const totalPaise = Math.round(bill * 100);
+    if (totalPaise < 1) {
+      if (billInput) billInput.setAttribute('aria-invalid', 'true');
+      if (peopleInput) peopleInput.removeAttribute('aria-invalid');
+      showError('Bill amount must be at least ₹0.01.');
+      return false;
+    }
+
+    if (billInput) billInput.removeAttribute('aria-invalid');
+
+    // Priority 3: Number of people field is empty
+    if (!peopleRaw) {
+      if (peopleInput) peopleInput.setAttribute('aria-invalid', 'true');
+      showError('Please enter the number of people.');
+      return false;
+    }
+
+    const people = Number(peopleRaw);
+
+    // Priority 4: People count is not a whole number of 1 or more
+    if (!isFinite(people) || !Number.isInteger(people) || people < 1) {
+      if (peopleInput) peopleInput.setAttribute('aria-invalid', 'true');
+      showError('Number of people must be a whole number of at least 1.');
+      return false;
+    }
+
+    // Priority 5: People count is above 1000
+    if (people > 1000) {
+      if (peopleInput) peopleInput.setAttribute('aria-invalid', 'true');
+      showError('Please enter 1000 people or fewer.');
+      return false;
+    }
+
+    if (peopleInput) peopleInput.removeAttribute('aria-invalid');
+
+    let timestamp = '';
+    if (!isRestoring) {
+      timestamp = new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      safeStorage.set(STORAGE_KEY_STATE, JSON.stringify({
+        occasion: occasionVal,
+        bill: billRaw,
+        people: peopleRaw,
+        timestamp: timestamp
+      }));
+    }
+
+    renderReceipt(occasionVal, totalPaise, people, timestamp);
+    return true;
+  }
+
+  // Reset Handler
+  function handleReset() {
+    if (occasionInput) {
+      occasionInput.value = '';
+      occasionInput.removeAttribute('aria-invalid');
+    }
+    if (billInput) {
+      billInput.value = '';
+      billInput.removeAttribute('aria-invalid');
+    }
+    if (peopleInput) {
+      peopleInput.value = '';
+      peopleInput.removeAttribute('aria-invalid');
+    }
+
+    clearError();
+    clearReceiptData();
+
+    if (liveHint) {
+      liveHint.hidden = true;
+      liveHint.textContent = '';
+    }
+
+    if (receiptCard) receiptCard.hidden = true;
+    if (emptyStateCard) emptyStateCard.hidden = false;
+
+    safeStorage.remove(STORAGE_KEY_STATE);
+  }
+
+  // Copy Summary Handler (Fix 3 & Fix 4)
+  function handleCopySummary() {
+    if (!currentCalculatedData || !copySummaryBtn) return;
+
+    try {
+      const occasionName = currentCalculatedData.occasion;
+      const formattedTotal = formatINR(currentCalculatedData.totalPaise / 100);
+      const people = currentCalculatedData.peopleCount;
+      const sharesStrings = currentCalculatedData.sharesPaise.map((p, idx) => {
+        return `Person ${idx + 1} ${formatINR(p / 100)}`;
+      }).join(', ');
+
+      const summaryText = `${occasionName} — ${formattedTotal} split between ${people} people: ${sharesStrings}`;
+
+      const onSuccess = () => {
+        try {
+          copySummaryBtn.classList.add('copied-state');
+          copySummaryBtn.textContent = COPY_BTN_SUCCESS_LABEL;
+          setTimeout(() => {
+            try {
+              copySummaryBtn.textContent = COPY_BTN_DEFAULT_LABEL;
+              copySummaryBtn.classList.remove('copied-state');
+            } catch (_) {}
+          }, 2000);
+        } catch (_) {}
+      };
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(summaryText).then(onSuccess).catch(() => {
+          fallbackCopyText(summaryText, onSuccess);
+        });
+      } else {
+        fallbackCopyText(summaryText, onSuccess);
+      }
+    } catch (_) {}
+  }
+
+  function fallbackCopyText(text, callback) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.className = 'offscreen-copy';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (typeof callback === 'function') callback();
+    } catch (_) {}
+  }
+
+  // Theme Management
+  function initTheme() {
+    const savedTheme = safeStorage.get(STORAGE_KEY_THEME);
+    // No saved choice -> follow the device's preference
+    let prefersDark = false;
+    try {
+      prefersDark = typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch (_) {}
+
+    const useDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+
+    if (useDark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }
+
+  function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    if (newTheme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    safeStorage.set(STORAGE_KEY_THEME, newTheme);
+  }
+
+  // Restore State on Page Reload
+  function restoreSavedState() {
+    const raw = safeStorage.get(STORAGE_KEY_STATE);
+    if (!raw) return;
+
+    try {
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') return;
+
+      if (typeof saved.bill === 'string' && typeof saved.people === 'string') {
+        if (occasionInput && typeof saved.occasion === 'string') {
+          occasionInput.value = saved.occasion;
+        }
+        if (billInput) billInput.value = saved.bill;
+        if (peopleInput) peopleInput.value = saved.people;
+
+        const bill = Number(saved.bill);
+        const people = Number(saved.people);
+        const totalPaise = Math.round(bill * 100);
+
+        if (
+          isFinite(bill) && 
+          bill > 0 && 
+          totalPaise >= 1 &&
+          isFinite(people) && 
+          Number.isInteger(people) && 
+          people > 0 && 
+          people <= 1000
+        ) {
+          renderReceipt(saved.occasion || '', totalPaise, people, saved.timestamp || '');
+          updateLiveHint();
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Event Listeners
+  if (formEl) {
+    formEl.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleProcess(false);
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener('click', handleReset);
+  }
+
+  if (copySummaryBtn) {
+    copySummaryBtn.addEventListener('click', handleCopySummary);
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener('click', toggleTheme);
+  }
+
+  if (billInput) {
+    billInput.addEventListener('input', () => {
+      if (billInput.hasAttribute('aria-invalid')) billInput.removeAttribute('aria-invalid');
+      updateLiveHint();
+    });
+  }
+
+  if (peopleInput) {
+    peopleInput.addEventListener('input', () => {
+      if (peopleInput.hasAttribute('aria-invalid')) peopleInput.removeAttribute('aria-invalid');
+      updateLiveHint();
+    });
+  }
+
+  // Initialize
+  initTheme();
+  restoreSavedState();
+});
+  </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
